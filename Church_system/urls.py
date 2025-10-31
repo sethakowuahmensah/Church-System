@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/auth/', include('authentication.urls')),
     path('api/', include('activity.urls')),
     path('api/', include('expenses.urls')),
+    path('api/', include('tithe_returns.urls')),
 ]

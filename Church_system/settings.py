@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'authentication',
     'activity',
     'expenses',
+    'tithe_returns',
 ]
 
 MIDDLEWARE = [
