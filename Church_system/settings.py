@@ -27,6 +27,7 @@ INSTALLED_APPS = [
 
     'authentication',
     'activity',
+    'expenses',
 ]
 
 MIDDLEWARE = [
