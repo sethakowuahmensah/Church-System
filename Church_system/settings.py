@@ -24,7 +24,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
-    'authentication',           # Only your auth app
+
+    'authentication',
+    'activity',
 ]
 
 MIDDLEWARE = [
