@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'activity',
     'expenses',
     'tithe_returns',
+    'churchmembers',
 ]
 
 MIDDLEWARE = [
