@@ -11,11 +11,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
 from datetime import timedelta
 import random
 import logging
 
-logger = logging.getLogger(__name__)  # For error logging
+logger = logging.getLogger(__name__)
 
 from .models import ChurchUser
 from .serializers import (
@@ -24,7 +25,7 @@ from .serializers import (
 )
 
 # -------------------------------------------------------------------------
-# EMAIL HELPERS (with error handling)
+# EMAIL HELPERS
 # -------------------------------------------------------------------------
 CHURCH_NAME = "Royal Gospel Church Int."
 
@@ -42,7 +43,7 @@ def send_welcome_email(user):
         )
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email_address], fail_silently=False)
     except Exception as e:
-        logger.error(f"Welcome email failed for {user.email_address}: {e}")
+        logger.error(f"Welcome email failed: {e}")
 
 def send_login_success_email(user):
     try:
@@ -52,35 +53,46 @@ def send_login_success_email(user):
             f"You have successfully logged in to your {CHURCH_NAME} account.\n\n"
             f"Time: {timezone.localtime().strftime('%Y-%m-%d %I:%M %p')}\n"
             f"Branch: {user.branch_name}\n\n"
-            f"If this wasn't you, please contact the church admin immediately.\n\n"
+            f"If this wasn't you, contact admin immediately.\n\n"
             f"Stay blessed!\n"
             f"{CHURCH_NAME} Media Team"
         )
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email_address], fail_silently=False)
     except Exception as e:
-        logger.error(f"Login success email failed for {user.email_address}: {e}")
+        logger.error(f"Login email failed: {e}")
 
 def send_otp_email(user, otp):
     try:
         subject = f"Your {CHURCH_NAME} Login OTP"
         message = (
             f"Hello {user.get_full_name()},\n\n"
-            f"Your One-Time Password (OTP) is:\n"
-            f"{otp}\n\n"
-            f"This code expires in 5 minutes.\n"
-            f"Use it to complete your login.\n\n"
+            f"Your One-Time Password (OTP) is:\n\n"
+            f"    {otp}\n\n"
+            f"Expires in 5 minutes.\n\n"
             f"God bless you!\n"
             f"{CHURCH_NAME} Media Team"
         )
         send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email_address], fail_silently=False)
     except Exception as e:
-        logger.error(f"OTP email failed for {user.email_address}: {e}")
+        logger.error(f"OTP email failed: {e}")
 
 def send_otp_sms(user, otp):
     print(f"[SMS] To {user.phone_number}: Your OTP is {otp}")
 
 # -------------------------------------------------------------------------
-# API VIEWS
+# JWT TOKEN GENERATOR
+# -------------------------------------------------------------------------
+def get_tokens_for_user(user):
+    refresh = RefreshToken.for_user(user)
+    refresh['role'] = user.role
+    refresh['branch'] = user.branch_name
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
+
+# -------------------------------------------------------------------------
+# VIEWS
 # -------------------------------------------------------------------------
 class SignupView(APIView):
     permission_classes = [AllowAny]
@@ -95,6 +107,7 @@ class SignupView(APIView):
                 "user_id": user.id
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -112,7 +125,10 @@ class LoginView(APIView):
             user.otp_created_at = timezone.now()
             user.otp_expires_at = expires_at
             user.otp_is_used = False
-            user.save()
+            user.save(update_fields=[
+                'otp', 'otp_method', 'otp_created_at',
+                'otp_expires_at', 'otp_is_used'
+            ])
 
             if method == 'email':
                 send_otp_email(user, otp)
@@ -125,6 +141,7 @@ class LoginView(APIView):
                 "method": method
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class OTPRequestView(APIView):
     permission_classes = [AllowAny]
@@ -142,7 +159,10 @@ class OTPRequestView(APIView):
             user.otp_created_at = timezone.now()
             user.otp_expires_at = expires_at
             user.otp_is_used = False
-            user.save()
+            user.save(update_fields=[
+                'otp', 'otp_method', 'otp_created_at',
+                'otp_expires_at', 'otp_is_used'
+            ])
 
             if method == 'email':
                 send_otp_email(user, otp)
@@ -152,6 +172,7 @@ class OTPRequestView(APIView):
             return Response({"message": f"OTP sent via {method}."})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class OTPVerifyView(APIView):
     permission_classes = [AllowAny]
 
@@ -160,10 +181,13 @@ class OTPVerifyView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             user.otp_is_used = True
-            user.save()
+            user.save(update_fields=['otp_is_used'])
 
             login(request, user)
             send_login_success_email(user)
+
+            # GENERATE JWT TOKENS
+            tokens = get_tokens_for_user(user)
 
             return Response({
                 "message": "Login successful. Confirmation email sent!",
@@ -173,12 +197,15 @@ class OTPVerifyView(APIView):
                     "email": user.email_address,
                     "role": user.role,
                     "branch": user.branch_name
-                }
+                },
+                "access": tokens['access'],
+                "refresh": tokens['refresh']
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 # -------------------------------------------------------------------------
-# PASSWORD RESET (100% API – NO TEMPLATES)
+# PASSWORD RESET
 # -------------------------------------------------------------------------
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
@@ -187,7 +214,11 @@ class PasswordResetRequestView(APIView):
         serializer = PasswordResetRequestSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email_address']
-            user = ChurchUser.objects.get(email_address=email)
+            try:
+                user = ChurchUser.objects.get(email_address=email)
+            except ChurchUser.DoesNotExist:
+                return Response({"message": "If email exists, reset link sent."})
+
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             reset_url = request.build_absolute_uri(
@@ -205,6 +236,7 @@ class PasswordResetRequestView(APIView):
             return Response({"message": "Password reset link sent."})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
 
@@ -215,24 +247,24 @@ class PasswordResetConfirmView(APIView):
         confirm_password = request.data.get('confirm_password')
 
         if not all([uid, token, new_password, confirm_password]):
-            return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "All fields required."}, status=400)
 
         if new_password != confirm_password:
-            return Response({"error": "Passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Passwords do not match."}, status=400)
 
         if len(new_password) < 8:
-            return Response({"error": "Password must be at least 8 characters."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Password too short."}, status=400)
 
         try:
             uid_int = urlsafe_base64_decode(uid).decode()
             user = ChurchUser.objects.get(pk=uid_int)
         except (TypeError, ValueError, OverflowError, ChurchUser.DoesNotExist):
-            return Response({"error": "Invalid reset link."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Invalid link."}, status=400)
 
         if not default_token_generator.check_token(user, token):
-            return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Invalid or expired token."}, status=400)
 
         user.set_password(new_password)
-        user.save()
+        user.save(update_fields=['password'])
 
-        return Response({"message": "Password changed successfully! You can now log in."})
+        return Response({"message": "Password changed successfully!"})

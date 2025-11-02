@@ -1,8 +1,8 @@
 # churchmembers/urls.py
 from django.urls import path
-from .views import ChurchMemberListCreateView, ChurchMemberDetailView
+from .views import MemberProfileView, MemberDashboardView
 
 urlpatterns = [
-    path('members/', ChurchMemberListCreateView.as_view(), name='member-list-create'),
-    path('members/<int:id>/', ChurchMemberDetailView.as_view(), name='member-detail'),
+    path('me/profile/', MemberProfileView.as_view(), name='member-profile'),
+    path('me/dashboard/', MemberDashboardView.as_view(), name='member-dashboard'),
 ]

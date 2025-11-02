@@ -1,15 +1,17 @@
 # authentication/serializers.py
+from django.contrib.auth import authenticate
 from rest_framework import serializers
-from django.db import models
 from .models import ChurchUser
+from django.db.models import Q
+import re
 from django.utils import timezone
-from datetime import timedelta
-import random
 
+
+# ----------------------------------------------------------------------
+# 1. SIGNUP SERIALIZER
+# ----------------------------------------------------------------------
 class UserSignupSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True)
-    branch_name = serializers.ChoiceField(choices=ChurchUser.BRANCH_CHOICES)
 
     class Meta:
         model = ChurchUser
@@ -17,139 +19,200 @@ class UserSignupSerializer(serializers.ModelSerializer):
             'first_name', 'last_name', 'email_address', 'phone_number',
             'whatsapp_number', 'gender', 'age_group', 'branch_name',
             'resident', 'marital_status', 'is_baptized', 'password',
-            'confirm_password'
+            'confirm_password', 'role'
         ]
+        extra_kwargs = {
+            'password': {'write_only': True},
+        }
 
     def validate(self, data):
         if data['password'] != data['confirm_password']:
-            raise serializers.ValidationError("Passwords do not match.")
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        if len(data['password']) < 8:
+            raise serializers.ValidationError({"password": "Password must be at least 8 characters."})
         return data
 
     def create(self, validated_data):
-        password = validated_data.pop('password')
         validated_data.pop('confirm_password')
         user = ChurchUser(**validated_data)
-        user.set_password(password)
+        user.set_password(validated_data['password'])
         user.save()
         return user
 
 
+# ----------------------------------------------------------------------
+# 2. LOGIN SERIALIZER (email / name / phone)
+# ----------------------------------------------------------------------
 class LoginSerializer(serializers.Serializer):
-    identifier = serializers.CharField()  # full_name or email_address
-    branch_name = serializers.ChoiceField(choices=ChurchUser.BRANCH_CHOICES)
-    password = serializers.CharField(write_only=True)
-    method = serializers.ChoiceField(choices=[('email', 'Email'), ('phone', 'Phone')], required=False, default='email')
+    identifier = serializers.CharField(write_only=True)
+    branch_name = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    method = serializers.ChoiceField(choices=[('email', 'Email'), ('sms', 'SMS')], write_only=True)
+
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def validate(self, data):
-        identifier = data['identifier']
-        branch_name = data['branch_name']
-        password = data['password']
-        method = data.get('method', 'email')
+        identifier = data.get('identifier')
+        branch_name = data.get('branch_name')
+        password = data.get('password')
 
+        if not identifier or not branch_name or not password:
+            raise serializers.ValidationError("All fields are required.")
+
+        user = None
+
+        # a) Email
         try:
-            if '@' in identifier:
-                user = ChurchUser.objects.get(email_address=identifier, branch_name=branch_name)
-            else:
-                # Split name into parts
-                name_parts = identifier.strip().split()
-                if len(name_parts) < 2:
-                    raise serializers.ValidationError("Full name must include first and last name.")
-                first_name = name_parts[0]
-                last_name = ' '.join(name_parts[1:])
-                user = ChurchUser.objects.get(
-                    first_name__iexact=first_name,
-                    last_name__iexact=last_name,
-                    branch_name=branch_name
-                )
+            user = ChurchUser.objects.get(email_address=identifier, branch_name=branch_name)
         except ChurchUser.DoesNotExist:
-            raise serializers.ValidationError("User not found with given credentials.")
+            pass
+
+        # b) Phone number
+        if not user and re.fullmatch(r'[\d+\-\s()]+', identifier):
+            try:
+                user = ChurchUser.objects.get(phone_number=identifier, branch_name=branch_name)
+            except ChurchUser.DoesNotExist:
+                pass
+
+        # c) Full name: "First Last" or "First Middle Last"
+        if not user and ' ' in identifier.strip():
+            parts = identifier.strip().split()
+            if len(parts) >= 2:
+                first = ' '.join(parts[:-1])
+                last = parts[-1]
+                try:
+                    user = ChurchUser.objects.get(
+                        Q(first_name__iexact=first) | Q(first_name__istartswith=first),
+                        last_name__iexact=last,
+                        branch_name=branch_name
+                    )
+                except ChurchUser.DoesNotExist:
+                    pass
+
+        if not user:
+            raise serializers.ValidationError({"non_field_errors": ["Invalid credentials."]})
 
         if not user.check_password(password):
-            raise serializers.ValidationError("Invalid password.")
+            raise serializers.ValidationError({"non_field_errors": ["Invalid credentials."]})
 
         if not user.is_active:
-            raise serializers.ValidationError("User account is disabled.")
+            raise serializers.ValidationError({"non_field_errors": ["Account is disabled."]})
 
         data['user'] = user
-        data['method'] = method
         return data
 
 
+# ----------------------------------------------------------------------
+# 3. OTP REQUEST SERIALIZER
+# ----------------------------------------------------------------------
 class OTPRequestSerializer(serializers.Serializer):
-    identifier = serializers.CharField()  # email or phone
-    branch_name = serializers.ChoiceField(choices=ChurchUser.BRANCH_CHOICES)
-    method = serializers.ChoiceField(choices=[('email', 'Email'), ('phone', 'Phone')])
+    identifier = serializers.CharField()
+    branch_name = serializers.CharField()
+    method = serializers.ChoiceField(choices=[('email', 'Email'), ('sms', 'SMS')])
+
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def validate(self, data):
-        identifier = data['identifier']
-        branch_name = data['branch_name']
-        method = data['method']
+        identifier = data.get('identifier')
+        branch_name = data.get('branch_name')
+
+        user = None
 
         try:
-            if '@' in identifier:
-                user = ChurchUser.objects.get(email_address=identifier, branch_name=branch_name)
-            else:
+            user = ChurchUser.objects.get(email_address=identifier, branch_name=branch_name)
+        except ChurchUser.DoesNotExist:
+            pass
+
+        if not user and re.fullmatch(r'[\d+\-\s()]+', identifier):
+            try:
                 user = ChurchUser.objects.get(phone_number=identifier, branch_name=branch_name)
-        except ChurchUser.DoesNotExist:
-            raise serializers.ValidationError("User not found with given credentials.")
+            except ChurchUser.DoesNotExist:
+                pass
+
+        if not user and ' ' in identifier.strip():
+            parts = identifier.strip().split()
+            if len(parts) >= 2:
+                first = ' '.join(parts[:-1])
+                last = parts[-1]
+                try:
+                    user = ChurchUser.objects.get(
+                        Q(first_name__iexact=first) | Q(first_name__istartswith=first),
+                        last_name__iexact=last,
+                        branch_name=branch_name
+                    )
+                except ChurchUser.DoesNotExist:
+                    pass
+
+        if not user:
+            raise serializers.ValidationError({"non_field_errors": ["User not found."]})
 
         data['user'] = user
         return data
 
 
-# UPDATED: Allow verification by full name OR email
+# ----------------------------------------------------------------------
+# 4. OTP VERIFY SERIALIZER
+# ----------------------------------------------------------------------
 class OTPVerifySerializer(serializers.Serializer):
-    identifier = serializers.CharField()  # full name OR email_address
-    branch_name = serializers.ChoiceField(choices=ChurchUser.BRANCH_CHOICES)
-    otp = serializers.CharField(max_length=6)
+    identifier = serializers.CharField(write_only=True)
+    branch_name = serializers.CharField(write_only=True)
+    otp = serializers.CharField(write_only=True, max_length=6)
+
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     def validate(self, data):
-        identifier = data['identifier']
-        branch_name = data['branch_name']
-        otp = data['otp']
+        identifier = data.get('identifier')
+        branch_name = data.get('branch_name')
+        otp = data.get('otp')
+
+        if not identifier or not branch_name or not otp:
+            raise serializers.ValidationError("All fields are required.")
+
+        user = None
 
         try:
-            if '@' in identifier:
-                # Verify by email
-                user = ChurchUser.objects.get(email_address=identifier, branch_name=branch_name)
-            else:
-                # Verify by full name
-                name_parts = identifier.strip().split()
-                if len(name_parts) < 2:
-                    raise serializers.ValidationError("Please provide both first and last name.")
-                first_name = name_parts[0]
-                last_name = ' '.join(name_parts[1:])
-                user = ChurchUser.objects.get(
-                    first_name__iexact=first_name,
-                    last_name__iexact=last_name,
-                    branch_name=branch_name
-                )
+            user = ChurchUser.objects.get(email_address=identifier, branch_name=branch_name)
         except ChurchUser.DoesNotExist:
-            raise serializers.ValidationError("Invalid user details.")
+            pass
 
-        # Check OTP
-        if not user.otp or user.otp != otp or user.otp_is_used or user.otp_expires_at < timezone.now():
-            raise serializers.ValidationError("Invalid or expired OTP.")
+        if not user and re.fullmatch(r'[\d+\-\s()]+', identifier):
+            try:
+                user = ChurchUser.objects.get(phone_number=identifier, branch_name=branch_name)
+            except ChurchUser.DoesNotExist:
+                pass
+
+        if not user and ' ' in identifier.strip():
+            parts = identifier.strip().split()
+            if len(parts) >= 2:
+                first = ' '.join(parts[:-1])
+                last = parts[-1]
+                try:
+                    user = ChurchUser.objects.get(
+                        Q(first_name__iexact=first) | Q(first_name__istartswith=first),
+                        last_name__iexact=last,
+                        branch_name=branch_name
+                    )
+                except ChurchUser.DoesNotExist:
+                    pass
+
+        if not user:
+            raise serializers.ValidationError({"non_field_errors": ["Invalid credentials."]})
+
+        if user.otp != otp:
+            raise serializers.ValidationError({"non_field_errors": ["Invalid OTP."]})
+
+        if user.otp_is_used:
+            raise serializers.ValidationError({"non_field_errors": ["OTP already used."]})
+
+        if user.otp_expires_at < timezone.now():
+            raise serializers.ValidationError({"non_field_errors": ["OTP has expired."]})
 
         data['user'] = user
         return data
 
 
+# ----------------------------------------------------------------------
+# 5. PASSWORD RESET SERIALIZER
+# ----------------------------------------------------------------------
 class PasswordResetRequestSerializer(serializers.Serializer):
     email_address = serializers.EmailField()
-
-    def validate_email_address(self, value):
-        if not ChurchUser.objects.filter(email_address=value).exists():
-            raise serializers.ValidationError("No user with this email.")
-        return value
-
-
-class PasswordResetConfirmSerializer(serializers.Serializer):
-    token = serializers.CharField()
-    new_password = serializers.CharField(min_length=8)
-    confirm_password = serializers.CharField()
-
-    def validate(self, data):
-        if data['new_password'] != data['confirm_password']:
-            raise serializers.ValidationError("Passwords do not match.")
-        return data
