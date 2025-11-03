@@ -1,22 +1,14 @@
 # expenses/serializers.py
 from rest_framework import serializers
-from .models import ChurchExpenses
+from .models import Expense
 
-class ChurchExpensesSerializer(serializers.ModelSerializer):
-    total_expenses = serializers.SerializerMethodField()
 
+class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ChurchExpenses
-        fields = [
-            'id', 'date', 'day',
-            'salary_wages', 'utilities', 'visitation_allowance',
-            'electricity', 'transportation', 'communication',
-            'publicity', 'medicals', 'instrument',
-            'donations', 'maintenance', 'other_expenses',
-            'total_expenses',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'total_expenses', 'created_at', 'updated_at']
+        model = Expense
+        fields = '__all__'
+        read_only_fields = ['total', 'recorded_by', 'created_at', 'updated_at']
 
-    def get_total_expenses(self, obj):
-        return obj.total_expenses()
+    def create(self, validated_data):
+        validated_data['recorded_by'] = self.context['request'].user
+        return super().create(validated_data)

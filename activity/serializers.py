@@ -2,20 +2,13 @@
 from rest_framework import serializers
 from .models import ActivityTracking
 
-class ActivityTrackingSerializer(serializers.ModelSerializer):
-    total_attendance = serializers.SerializerMethodField()
 
+class ActivityTrackingSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityTracking
-        fields = [
-            'id', 'activity_date', 'day', 'activity_name', 'speaker',
-            'men_attendance', 'women_attendance', 'youth_attendance',
-            'children_attendance', 'total_attendance',
-            'general_offering', 'special_offering', 'branch_name'
-        ]
+        fields = '__all__'
+        read_only_fields = ['total_offering', 'recorded_by', 'created_at', 'updated_at']
 
-    def get_total_attendance(self, obj):
-        return (
-            obj.men_attendance + obj.women_attendance +
-            obj.youth_attendance + obj.children_attendance
-        )
+    def create(self, validated_data):
+        validated_data['recorded_by'] = self.context['request'].user
+        return super().create(validated_data)
