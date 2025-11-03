@@ -1,20 +1,14 @@
 # expenses/views.py
 from rest_framework import generics
-from rest_framework.permissions import AllowAny  # Change to IsAuthenticated later
-from .models import ChurchExpenses
-from .serializers import ChurchExpensesSerializer
+from .models import Expense
+from .serializers import ExpenseSerializer
+
 
 class ChurchExpensesListCreateView(generics.ListCreateAPIView):
-    queryset = ChurchExpenses.objects.all()
-    serializer_class = ChurchExpensesSerializer
-    permission_classes = [AllowAny]
-
-    def perform_create(self, serializer):
-        serializer.save()
+    queryset = Expense.objects.all()
+    serializer_class = ExpenseSerializer
 
 
 class ChurchExpensesDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = ChurchExpenses.objects.all()
-    serializer_class = ChurchExpensesSerializer
-    permission_classes = [AllowAny]
-    lookup_field = 'id'
+    queryset = Expense.objects.all()
+    serializer_class = ExpenseSerializer
