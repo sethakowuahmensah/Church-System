@@ -2,36 +2,47 @@
 from django.db import models
 from authentication.models import ChurchUser
 
+
 class ChurchMember(models.Model):
-    # === OneToOne link to ChurchUser ===
+    # These fields are now stored directly on ChurchMember
+    first_name = models.CharField(
+        max_length=100,
+        db_column='first_name',
+        default=''  # ← Manual default (Option 2)
+    )
+    last_name = models.CharField(
+        max_length=100,
+        db_column='last_name',
+        default=''  # ← Manual default (Option 2)
+    )
+    age_group = models.CharField(
+        max_length=20,
+        choices=[
+            ('youth', 'Youth'),
+            ('men', 'Men'),
+            ('women', 'Women'),
+            ('children', 'Children')
+        ],
+        default='men',  # ← Manual default (Option 2)
+        db_column='age_group'
+    )
+    branch_name = models.CharField(
+        max_length=100,
+        db_column='branch_name',
+        default=''  # ← Manual default (Option 2)
+    )
+
+    # Keep the OneToOne link to ChurchUser (for login, etc.)
     user = models.OneToOneField(
         ChurchUser,
         on_delete=models.CASCADE,
-        related_name='member_profile',
-        limit_choices_to={'role': 'member'}
+        related_name='churchmember',
+        null=True,
+        blank=True
     )
 
-    # === EXACT SAME COLUMNS AS ChurchUser WITH DEFAULTS ===
-    first_name = models.CharField(max_length=100, default='')
-    last_name = models.CharField(max_length=100, default='')
-    email_address = models.EmailField(unique=True, default='')
-    phone_number = models.CharField(max_length=15, default='')
-    whatsapp_number = models.CharField(max_length=15, blank=True, null=True, default=None)
-    gender = models.CharField(max_length=10, default='other')
-    age_group = models.CharField(max_length=20, default='unknown')
-    branch_name = models.CharField(max_length=100, default='')
-    resident = models.CharField(max_length=100, default='')
-    marital_status = models.CharField(max_length=20, default='single')
-    is_baptized = models.BooleanField(default=False)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
-        db_table = 'churchmembers'
-        verbose_name = 'Church Member'
-        verbose_name_plural = 'Church Members'
-        ordering = ['-created_at']
+        db_table = 'church_member'  # Table name stays the same
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.branch_name})"
