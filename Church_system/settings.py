@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'expenses',
     'tithe_returns',
     'churchmembers',
+    'branchsecretary',
 ]
 
 MIDDLEWARE = [
