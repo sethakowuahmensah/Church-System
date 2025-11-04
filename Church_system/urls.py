@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/', include('expenses.urls')),
     path('api/', include('tithe_returns.urls')),
     path('api/', include('churchmembers.urls')),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),  # ← NEW
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),  # ← NEW
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/branchsecretary/', include('branchsecretary.urls')),
 ]
