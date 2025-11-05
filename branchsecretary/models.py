@@ -49,7 +49,7 @@ class BranchSecretary(models.Model):
 def create_francis_ayeh(sender, **kwargs):
     if sender.name != 'branchsecretary':
         return
-    email = "seth.mensah005@stu.ucc.edu.gh"
+    email = "nyakowuahmensah@gmail.com"
     try:
         church_user = ChurchUser.objects.get(email_address=email)
     except ChurchUser.DoesNotExist:
@@ -70,4 +70,4 @@ def create_francis_ayeh(sender, **kwargs):
             resident="Fijai", marital_status="married", is_baptized=True,
             church_user=church_user
         )
-        print("Francis Ayeh created: seth.mensah005@stu.ucc.edu.gh / password100")
+    
