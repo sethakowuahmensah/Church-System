@@ -1,1 +1,38 @@
-".env" 
+# Environment variables
+.env
+*.env
+.env.local
+
+# Sensitive model files (contain seed data)
+branchsecretary/models.py
+pastor/models.py
+
+# Django & Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3
+*.log
+*.pot
+*.pyc
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.venv
+venv/
+ENV/
+env/

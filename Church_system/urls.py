@@ -16,8 +16,9 @@ urlpatterns = [
     path('api/me/', include('churchmembers.urls')),
 
     # TOKEN
-    path('api/token/', include('rest_framework.urls')),   # optional
+    path('api/token/', include('rest_framework.urls')),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     path('api/secretary/', include('branchsecretary.urls')),
+    path('api/pastor/', include('pastor.urls')),
 ]
