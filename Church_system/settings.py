@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'churchmembers',
     'branchsecretary',
     'pastor',
+    'superadmin',
 ]
 
 MIDDLEWARE = [

@@ -21,4 +21,5 @@ urlpatterns = [
 
     path('api/secretary/', include('branchsecretary.urls')),
     path('api/pastor/', include('pastor.urls')),
+    path('api/superadmin/', include('superadmin.urls')),
 ]

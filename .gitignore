@@ -6,7 +6,7 @@
 # Sensitive model files (contain seed data)
 branchsecretary/models.py
 pastor/models.py
-
+superadmin/models.py
 # Django & Python
 __pycache__/
 *.py[cod]
