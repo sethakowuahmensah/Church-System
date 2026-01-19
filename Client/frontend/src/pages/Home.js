@@ -11,7 +11,7 @@ function Home() {
       <div className="home-overlay">
         <div className="home-hero">
           <div className="home-hero-text">
-            <h1>Church administration, simplified.</h1>
+            <h1>ROYAL GOSPEL CHURCH INTERNATIONAL</h1>
             <p>
               A central system to manage services, members, tithe returns, activities,
               and finances across your church branches.

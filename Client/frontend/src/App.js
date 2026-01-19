@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -15,18 +15,11 @@ function App() {
     <Router>
       <div className="App">
         <nav className="main-nav">
-          <div className="nav-brand">Church System</div>
-          <ul className="nav-links">
-            <li><Link to="/">Home</Link></li>
-            <li><Link to="/activities">Activities</Link></li>
-            <li><Link to="/expenses">Expenses</Link></li>
-            <li><Link to="/tithe-returns">Tithe Returns</Link></li>
-            <li><Link to="/members">Members</Link></li>
-            <li><Link to="/secretary">Secretary</Link></li>
-            <li><Link to="/pastor">Pastor</Link></li>
-            <li><Link to="/login">Login</Link></li>
-            <li><Link to="/signup">Sign Up</Link></li>
-          </ul>
+          <img
+            src={`${process.env.PUBLIC_URL}/churchpic.jpeg`}
+            alt="Church logo"
+            className="nav-logo"
+          />
         </nav>
         <Routes>
           <Route path="/" element={<Home />} />
