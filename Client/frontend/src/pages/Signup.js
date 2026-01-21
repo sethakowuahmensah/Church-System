@@ -117,7 +117,7 @@ function Signup() {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page auth-page--bg">
       <div className="auth-card">
         <h1>Create an account</h1>
         <p className="auth-subtitle">
